@@ -135,16 +135,15 @@ export const Treemap: React.FC<TreemapProps> = ({ data, width = 1000, height = 7
     // Lasso selection
     let isDrawing = false;
     let lassoPath: Snap.Element | null = null;
-    let pathString = '';
+    let startPoint = { x: 0, y: 0 };
 
     paper.mousedown((e) => {
       isDrawing = true;
-      const point = getMousePosition(e);
-      pathString = `M${point.x},${point.y}`;
+      startPoint = getMousePosition(e);
       
       if (lassoPath) lassoPath.remove();
       
-      lassoPath = paper.path(pathString).attr({
+      lassoPath = paper.rect(startPoint.x, startPoint.y, 0, 0).attr({
         stroke: '#000',
         strokeWidth: 2,
         fill: 'rgba(0,0,0,0.1)',
@@ -153,26 +152,43 @@ export const Treemap: React.FC<TreemapProps> = ({ data, width = 1000, height = 7
     });
 
     paper.mousemove((e) => {
-      if (!isDrawing) return;
-      const point = getMousePosition(e);
-      pathString += ` L${point.x},${point.y}`;
-      if (lassoPath) lassoPath.attr({ d: pathString });
+      if (!isDrawing || !lassoPath) return;
+      const currentPoint = getMousePosition(e);
+      
+      // Calculate rectangle dimensions
+      const width = currentPoint.x - startPoint.x;
+      const height = currentPoint.y - startPoint.y;
+      
+      // Update rectangle position and size
+      if (width >= 0) {
+        lassoPath.attr({ x: startPoint.x, width });
+      } else {
+        lassoPath.attr({ x: currentPoint.x, width: Math.abs(width) });
+      }
+      
+      if (height >= 0) {
+        lassoPath.attr({ y: startPoint.y, height });
+      } else {
+        lassoPath.attr({ y: currentPoint.y, height: Math.abs(height) });
+      }
     });
 
     paper.mouseup(() => {
       isDrawing = false;
       if (lassoPath) {
-        pathString += 'Z';
-        lassoPath.attr({ d: pathString });
+        const bbox = lassoPath.getBBox();
 
         paper.selectAll('g').forEach((element) => {
-          const bbox = element.getBBox();
+          const elementBBox = element.getBBox();
           const center = {
-            x: bbox.cx,
-            y: bbox.cy
+            x: elementBBox.cx,
+            y: elementBBox.cy
           };
 
-          if (Snap.path.isPointInside(pathString, center.x, center.y)) {
+          if (center.x >= bbox.x && 
+              center.x <= bbox.x + bbox.width &&
+              center.y >= bbox.y && 
+              center.y <= bbox.y + bbox.height) {
             selectedElements.current.add(element);
             element.select('rect').attr({ opacity: 0.7 });
           }
