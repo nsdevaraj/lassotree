@@ -132,10 +132,24 @@ export const Treemap: React.FC<TreemapProps> = ({ data, width = 1000, height = 7
       }
     });
 
+    // Add CSS class for lasso cursor
+    const lassoStyle = paper.rect(0, 0, width, height).attr({
+      fill: 'transparent',
+      cursor: 'crosshair'
+    });
+
     // Lasso selection
     let isDrawing = false;
     let lassoPath: Snap.Element | null = null;
     let startPoint = { x: 0, y: 0 };
+
+    const getMousePosition = (e: MouseEvent) => {
+      const svgRect = svgRef.current?.getBoundingClientRect();
+      return {
+        x: e.clientX - (svgRect?.left || 0),
+        y: e.clientY - (svgRect?.top || 0)
+      };
+    };
 
     paper.mousedown((e) => {
       isDrawing = true;
@@ -147,7 +161,8 @@ export const Treemap: React.FC<TreemapProps> = ({ data, width = 1000, height = 7
         stroke: '#000',
         strokeWidth: 2,
         fill: 'rgba(0,0,0,0.1)',
-        'stroke-dasharray': '5,5'
+        'stroke-dasharray': '5,5',
+        cursor: 'crosshair'
       });
     });
 
@@ -176,19 +191,20 @@ export const Treemap: React.FC<TreemapProps> = ({ data, width = 1000, height = 7
     paper.mouseup(() => {
       isDrawing = false;
       if (lassoPath) {
-        const bbox = lassoPath.getBBox();
+        const lassoBBox = lassoPath.getBBox();
 
         paper.selectAll('g').forEach((element) => {
           const elementBBox = element.getBBox();
-          const center = {
-            x: elementBBox.cx,
-            y: elementBBox.cy
-          };
+          
+          // Check if the element intersects with the lasso rectangle
+          const intersects = !(
+            elementBBox.x > lassoBBox.x + lassoBBox.width ||
+            elementBBox.x + elementBBox.width < lassoBBox.x ||
+            elementBBox.y > lassoBBox.y + lassoBBox.height ||
+            elementBBox.y + elementBBox.height < lassoBBox.y
+          );
 
-          if (center.x >= bbox.x && 
-              center.x <= bbox.x + bbox.width &&
-              center.y >= bbox.y && 
-              center.y <= bbox.y + bbox.height) {
+          if (intersects) {
             selectedElements.current.add(element);
             element.select('rect').attr({ opacity: 0.7 });
           }
@@ -199,14 +215,6 @@ export const Treemap: React.FC<TreemapProps> = ({ data, width = 1000, height = 7
         }, 1000);
       }
     });
-
-    function getMousePosition(event: MouseEvent) {
-      const rect = svgRef.current?.getBoundingClientRect();
-      return {
-        x: event.clientX - (rect?.left || 0),
-        y: event.clientY - (rect?.top || 0)
-      };
-    }
 
   }, [data, width, height]);
 
