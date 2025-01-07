@@ -120,15 +120,40 @@ export const Treemap: React.FC<TreemapProps> = ({ data, width = 1000, height = 7
         });
       } else {
         // Internal nodes - add titles
-        paper.text(
-          node.x0,
+        const titlePath = [];
+        let current = node;
+        while (current.parent) {
+          titlePath.unshift(current.data.name);
+          current = current.parent;
+        }
+        titlePath.unshift(current.data.name);
+
+        const title = paper.text(
+          node.x0 + 5,
           node.y0 + 15,
-          node.data.name
+          titlePath.join(' / ')
         ).attr({
-          'font-size': '14px',
+          'font-size': '12px',
           'font-weight': 'bold',
-          fill: '#333'
+          'font-family': 'Arial',
+          fill: '#666',
+          cursor: 'default'
         });
+
+        // Add background rectangle for title
+        const titleBBox = title.getBBox();
+        const titleBg = paper.rect(
+          titleBBox.x - 2,
+          titleBBox.y - 2,
+          titleBBox.width + 4,
+          titleBBox.height + 4
+        ).attr({
+          fill: '#fff',
+          stroke: '#ddd',
+          strokeWidth: 1
+        });
+        
+        titleBg.insertBefore(title);
       }
     });
 
