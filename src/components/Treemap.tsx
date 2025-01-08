@@ -87,6 +87,7 @@ const renderLeafNode = (paper: Snap.Paper, node: any, group: Snap.Element) => {
       "font-weight": "normal",
       "pointer-events": "none",
       "user-select": "none",
+      "class": "unselectable"
     });
 
   const text = paper
@@ -103,6 +104,7 @@ const renderLeafNode = (paper: Snap.Paper, node: any, group: Snap.Element) => {
       "font-weight": "bold",
       "pointer-events": "none",
       "user-select": "none",
+      "class": "unselectable"
     });
 
   group.add(rect);
