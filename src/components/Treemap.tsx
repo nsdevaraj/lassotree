@@ -20,6 +20,24 @@ const colors = [
   '#FF9800', '#795548', '#009688', '#673AB7'
 ];
 
+// Colors for different hierarchy levels - from light to dark
+const levelColors = [
+  '#64B5F6', // Level 0 - Content
+  '#2196F3', // Level 1 - Content
+  '#1976D2', // Level 2 - Content
+  '#1565C0', // Level 3 - Content
+  '#0D47A1'  // Level 4 - Content
+];
+
+// Title background colors - darker shades
+const titleColors = [
+  '#1565C0', // Level 0 - Title
+  '#0D47A1', // Level 1 - Title
+  '#0A367A', // Level 2 - Title
+  '#072654', // Level 3 - Title
+  '#051B3B'  // Level 4 - Title
+];
+
 export const Treemap: React.FC<TreemapProps> = ({ data, width = 1000, height = 700 }) => {
   const svgRef = useRef<SVGSVGElement>(null);
   const snapRef = useRef<Snap.Paper | null>(null);
@@ -46,116 +64,97 @@ export const Treemap: React.FC<TreemapProps> = ({ data, width = 1000, height = 7
 
     const tree = treemapLayout(root);
 
-    // Draw all nodes including internal nodes
-    tree.each((node) => {
-      if (!node.children) {
-        // Leaf nodes
-        const rect = paper.rect(
-          node.x0,
-          node.y0,
-          node.x1 - node.x0,
-          node.y1 - node.y0
-        );
+    const renderTreemap = (paper: Snap.Paper, root: d3.HierarchyRectangularNode<TreemapData>) => {
+      tree.each((node) => {
+        if (!node.children) {
+          // Leaf nodes
+          const rect = paper.rect(
+            node.x0,
+            node.y0,
+            node.x1 - node.x0,
+            node.y1 - node.y0
+          );
 
-        const depth = node.depth;
-        rect.attr({
-          fill: colors[depth % colors.length],
-          stroke: '#fff',
-          strokeWidth: 1,
-          cursor: 'pointer'
-        });
+          rect.attr({
+            fill: levelColors[Math.min(node.depth, levelColors.length - 1)],
+            stroke: '#fff',
+            strokeWidth: 2,
+            cursor: 'pointer'
+          });
 
-        // Get full hierarchy path
-        const path = [];
-        let current = node;
-        while (current.parent) {
-          path.unshift(current.data.name);
-          current = current.parent;
+          // Add value text
+          const valueText = paper.text(
+            node.x0 + (node.x1 - node.x0) / 2,
+            node.y0 + (node.y1 - node.y0) / 2 + 15,
+            `${node.value}m`
+          ).attr({
+            'text-anchor': 'middle',
+            'dominant-baseline': 'middle',
+            fill: '#fff',
+            'font-size': '14px',
+            'font-weight': 'normal'
+          });
+
+          const text = paper.text(
+            node.x0 + (node.x1 - node.x0) / 2,
+            node.y0 + (node.y1 - node.y0) / 2 - 10,
+            node.data.name
+          ).attr({
+            'text-anchor': 'middle',
+            'dominant-baseline': 'middle',
+            fill: '#fff',
+            'font-size': '16px',
+            'font-weight': 'bold'
+          });
+
+          const group = paper.group();
+          group.add(rect);
+          group.add(text);
+          group.add(valueText);
+
+        } else { 
+          // Internal nodes (titles)
+          const titleHeight = 30; // Reduced height for better proportions
+          const titleBg = paper.rect(
+            node.x0,
+            node.y0,
+            node.x1 - node.x0,
+            titleHeight
+          ).attr({
+            fill: titleColors[Math.min(node.depth, titleColors.length - 1)],
+            stroke: '#fff',
+            strokeWidth: 1
+          });
+
+          // Calculate value text
+          const valueText = node.value ? ` (${node.value}m)` : '';
+          
+          // Create title text with better positioning and style
+          const title = paper.text(
+            node.x0 + 8, // Slight padding from left
+            node.y0 + (titleHeight/2),
+            node.data.name + valueText
+          ).attr({
+            'font-size': '12px', // Slightly smaller font
+            'font-weight': 'bold',
+            'font-family': 'Arial',
+            fill: '#ffffff',
+            'text-anchor': 'start',
+            'dominant-baseline': 'middle',
+            'letter-spacing': '0.5px' // Better letter spacing for readability
+          });
+
+          // Add subtle text shadow for better contrast
+          title.node.style.textShadow = '0px 1px 2px rgba(0,0,0,0.3)';
+
+          const titleGroup = paper.group();
+          titleGroup.add(titleBg);
+          titleGroup.add(title);
         }
-        path.unshift(current.data.name);
+      });
+    };
 
-        // Add text label
-        const text = paper.text(
-          node.x0 + (node.x1 - node.x0) / 2,
-          node.y0 + (node.y1 - node.y0) / 2,
-          node.data.name
-        );
-
-        text.attr({
-          'text-anchor': 'middle',
-          'dominant-baseline': 'middle',
-          fill: '#fff',
-          'font-size': '12px'
-        });
-
-        // Create group
-        const group = paper.group();
-        group.add(rect);
-        group.add(text);
-
-        // Add title on hover
-        const title = paper.text(
-          node.x0 + 5,
-          node.y0 + 15,
-          path.join(' > ')
-        ).attr({
-          'font-size': '10px',
-          fill: '#fff',
-          opacity: 0
-        });
-
-        group.hover(
-          () => title.attr({ opacity: 1 }),
-          () => title.attr({ opacity: 0 })
-        );
-
-        group.click(() => {
-          if (selectedElements.current.has(group)) {
-            selectedElements.current.delete(group);
-            rect.attr({ opacity: 1 });
-          } else {
-            selectedElements.current.add(group);
-            rect.attr({ opacity: 0.7 });
-          }
-        });
-      } else {
-        // Internal nodes - add titles
-        const titlePath = [];
-        let current = node;
-        while (current.parent) {
-          titlePath.unshift(current.data.name);
-          current = current.parent;
-        }
-        titlePath.unshift(current.data.name);
-
-        const title = paper.text(
-          node.x0 + 5,
-          node.y0 + 15,
-          titlePath.join(' / ')
-        ).attr({
-          'font-size': '12px',
-          'font-weight': 'bold',
-          'font-family': 'Arial',
-          fill: '#666',
-          cursor: 'default'
-        });
-
-        // Add background rectangle for title
-        const titleBBox = title.getBBox();
-        const titleBg = paper.rect(
-          titleBBox.x - 2,
-          titleBBox.y - 2,
-          titleBBox.width + 4,
-          titleBBox.height + 4
-        ).attr({
-          fill: '#fff',
-          stroke: '#ddd',
-          strokeWidth: 1
-        });
-        
-        titleBg.insertBefore(title);
-      }
-    });
+    renderTreemap(paper, root);
 
     // Add CSS class for lasso cursor
     const lassoStyle = paper.rect(0, 0, width, height).attr({
