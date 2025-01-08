@@ -40,6 +40,7 @@ const getMousePosition = (e: MouseEvent, svgElement: SVGSVGElement | null) => {
   };
 };
 
+
 const handleNodeClick = (group: Snap.Element, e: MouseEvent) => {
   e.stopPropagation();
   e.preventDefault();
@@ -56,7 +57,29 @@ const handleNodeClick = (group: Snap.Element, e: MouseEvent) => {
   texts.forEach((text: Snap.Element) => {
     text.attr({ opacity: newOpacity });
   });
+  const nodeData = (group.node as any)._data;
+  if (!nodeData?.children) return;
+
+  const nodeId = group.attr("data-id");
+  const isExpanded = visibilityState.get(nodeId) || false;
+  
+  // Toggle grandchildren visibility
+  nodeData.children.forEach((child: any) => {
+    if (child.children) {
+      child.children.forEach((grandchild: any) => {
+        const grandchildId = `node-${grandchild.data.name}-${grandchild.value}`;
+        const element = Snap.select(`[data-id="${grandchildId}"]`);
+        if (element) {
+          element.attr({ display: isExpanded ? "none" : "inline" });
+        }
+      });
+    }
+  });
+  
+  // Update visibility state
+  visibilityState.set(nodeId, !isExpanded);
 };
+ 
 
 const renderLeafNode = (paper: Snap.Paper, node: any, group: Snap.Element) => {
   const rect = paper.rect(
@@ -215,11 +238,19 @@ const setupLassoSelection = (paper: Snap.Paper, svgRef: React.RefObject<SVGSVGEl
   });
 };
 
+
+// Store visibility state
+const visibilityState = new Map<string, boolean>();
+
+
 const renderTreemap = (paper: Snap.Paper, tree: any) => {
   tree.each((node: any) => {
     const group = paper.group();
     const groupId = `node-${node.data.name}-${node.value}`;
     group.attr({ "data-id": groupId });
+    
+    // Store node data for click handling
+    (group.node as any)._data = node;
 
     if (!node.children) {
       renderLeafNode(paper, node, group);
@@ -230,6 +261,7 @@ const renderTreemap = (paper: Snap.Paper, tree: any) => {
     group.click((e: MouseEvent) => handleNodeClick(group, e));
   });
 };
+
 
 export const Treemap: React.FC<TreemapProps> = ({
   data,
