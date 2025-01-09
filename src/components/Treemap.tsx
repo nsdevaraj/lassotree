@@ -71,17 +71,17 @@ const traverseAndSetDisplay = (node: any, display: string) => {
     }
 };
 
-const handleTitleClick = (
-  group: Snap.Element,
-  e: MouseEvent,
-  selectedTitle: React.MutableRefObject<Set<Snap.Element>>,
-  selectedElements: React.MutableRefObject<Set<Snap.Element>>
-) => {
-  e.stopPropagation();
-  e.preventDefault();
 
-    const node = group.node.associatedNode;
-    node.group = group;
+const handleTitleClick = (
+    group: Snap.Element,
+    e: MouseEvent,
+    selectedTitle: React.MutableRefObject<Set<Snap.Element>>,
+    selectedElements: React.MutableRefObject<Set<Snap.Element>>,
+    node: any
+) => {
+    e.stopPropagation();
+    e.preventDefault();
+
     const isSelected = selectedTitle.current.has(group);
     if (isSelected) {
         selectedTitle.current.delete(group);
@@ -89,10 +89,9 @@ const handleTitleClick = (
         if (node && node.children) {
             traverseChilds(node, false, selectedElements.current);
         }
-        if (node && node.siblings) {
+        if (node && node.parent && node.siblings) {
             addSiblingNodes(node.siblings);
-            // Restore the original layout
-            //  adjustLayout(node.parent);
+            // adjustLayout(node.parent);
         }
     } else {
         selectedTitle.current.add(group);
@@ -100,38 +99,28 @@ const handleTitleClick = (
         if (node && node.children) {
             traverseChilds(node, true, selectedElements.current);
         }
-        if (node && node.siblings) {
-            // Store the original positions and dimensions of the siblings
-            node.siblings.forEach((sibling: any) => {
-                sibling.originalX0 = sibling.x0;
-                sibling.originalX1 = sibling.x1;
-                sibling.originalY0 = sibling.y0;
-                sibling.originalY1 = sibling.y1;
-            });
+        if (node && node.parent && node.siblings) {
             removeSiblingNodes(node.siblings);
-            // Adjust the layout to fill the space left by the hidden siblings
-            //adjustLayout(node);
+            // adjustLayout(node);
         }
     }
     const rect = group.select('rect');
     if (rect) rect.attr({ opacity: group.attr('opacity') });
     const texts = group.selectAll('text');
     texts.forEach((text: Snap.Element) => {
-        text.attr({ opacity: group.attr('opacity') });
+        if (text) text.attr({ opacity: group.attr('opacity') });
     });
 };
-
 const adjustLayout = (node: any) => {
     if (!node || !node.children) return;
 
-    // Filter visible children
-    const visibleChildren = node.children.filter((child: any) => child.group.attr('display') !== 'none');
+    // Filter visible children and ensure they have a group and attr
+    const visibleChildren = node.children
+        .filter((child: any) => child && child.group && child.group.attr && child.group.attr('display') !== 'none')
+        .filter((child: any) => child.x0 !== undefined && child.y0 !== undefined);
 
     // Create a new hierarchy with visible children
-    const visibleRoot = hierarchy({ children: visibleChildren }).each((d: any) => {
-        d.value = d.data.value || 0;
-        d.name = d.data.name;
-    });
+    const visibleRoot = hierarchy({ children: visibleChildren }).sum((d: any) => d.value || 0);
 
     // Apply treemap layout to the visible children
     const visibleTree = treemap()
@@ -143,6 +132,7 @@ const adjustLayout = (node: any) => {
     // Assign new layout positions to visible children
     visibleTree.each((d: any, i: number) => {
         const child = visibleChildren[i];
+        if (!child) return; // Skip if child is undefined
         child.x0 = node.x0 + d.x0;
         child.x1 = node.x0 + d.x1;
         child.y0 = node.y0 + d.y0;
@@ -307,7 +297,7 @@ const renderInternalNode = (
     title.node.style.textShadow = '0px 1px 2px rgba(0,0,0,0.3)';
     group.add(titleBg);
     group.add(title);
-    group.click((e: MouseEvent) => handleTitleClick(group, e, selectedTitle, selectedElements));
+    group.click((e: MouseEvent) => handleTitleClick(group, e, selectedTitle, selectedElements, node));
 };
 const setupLassoSelection = (
     paper: Snap.Paper,
@@ -425,7 +415,7 @@ const traverseChilds = (node: any, selected: boolean = false, selectedElement: S
     }
 };
 
-export const Treemap: React.FC<TreemapProps> = ({data, width = 2000, height = 1400, enableMeasure = false }) => {
+export const Treemap: React.FC<TreemapProps> = ({data, width = 2000, height = 1400, enableMeasure = true }) => {
   const svgRef = useRef<SVGSVGElement>(null);
   const paperRef = useRef(null);
   const selectedElements = useRef<Set<Snap.Element>>(new Set());
