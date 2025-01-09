@@ -58,7 +58,28 @@ const handleNodeClick = (
         text.attr({ opacity: newOpacity });
     });
 };
+const traverseAndSetDisplay = (node: any, display: string) => {
+    if (node.group) {
+        node.group.attr({ display });
+    }
+    if (node.children) {
+        node.children.forEach((child: any) => traverseAndSetDisplay(child, display));
+    }
+    if (node.childs) {
+        node.childs.forEach((child: any) => traverseAndSetDisplay(child, display));
+    }
+};
+const removeSiblingNodes = (siblings: any[]) => {
+    siblings.forEach((sibling: any) => {
+        traverseAndSetDisplay(sibling, 'none');
+    });
+};
 
+const addSiblingNodes = (siblings: any[]) => {
+    siblings.forEach((sibling: any) => {
+        traverseAndSetDisplay(sibling, 'block');
+    });
+};
 const handleTitleClick = (
     group: Snap.Element,
     e: MouseEvent,
@@ -71,42 +92,30 @@ const handleTitleClick = (
     const node = group.node.associatedNode;
     node.group = group;
     const isSelected = selectedTitle.current.has(group);
-    let newOpacity;
     if (isSelected) {
         selectedTitle.current.delete(group);
-        newOpacity = 1;
+        group.attr({ opacity: 1 });
         if (node && node.children) {
             traverseChilds(node, false, selectedElements.current);
         }
         if (node && node.siblings) {
-            node.siblings.forEach((sibling: any) => {
-                const siblingGroup = sibling.group;
-                if (siblingGroup) {
-                    siblingGroup.attr({ opacity: 1 });
-                }
-            });
+            addSiblingNodes(node.siblings);
         }
     } else {
         selectedTitle.current.add(group);
-        newOpacity = 0.7;
+        group.attr({ opacity: 0.7 });
         if (node && node.children) {
             traverseChilds(node, true, selectedElements.current);
         }
         if (node && node.siblings) {
-            node.siblings.forEach((sibling: any) => {
-                const siblingGroup = sibling.group;
-                if (siblingGroup) {
-                    siblingGroup.attr({ opacity: 0 });
-                }
-            });
+            removeSiblingNodes(node.siblings);
         }
     }
-    group.attr({ opacity: newOpacity });
     const rect = group.select('rect');
-    if (rect) rect.attr({ opacity: newOpacity });
+    if (rect) rect.attr({ opacity: group.attr('opacity') });
     const texts = group.selectAll('text');
     texts.forEach((text: Snap.Element) => {
-        text.attr({ opacity: newOpacity });
+        text.attr({ opacity: group.attr('opacity') });
     });
 };
 const renderLeafNode = (
@@ -115,6 +124,8 @@ const renderLeafNode = (
     group: Snap.Element,
     selectedElements: React.MutableRefObject<Set<Snap.Element>>,
 ) => {
+
+    group.attr({ display: 'block' });
     group.node.associatedNode = node;
     node.group = group;
     const rect = paper.rect(node.x0, node.y0, node.x1 - node.x0, node.y1 - node.y0);
@@ -179,6 +190,8 @@ const renderInternalNode = (paper: Snap.Paper, node: any, group: Snap.Element, s
         }
     }
     node.siblings = siblings;
+
+    group.attr({ display: 'block' });
     // Associate the node with the group
     group.node.associatedNode = node;
     node.group = group;
