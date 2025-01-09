@@ -38,7 +38,7 @@ const getMousePosition = (e: MouseEvent, svgElement: SVGSVGElement | null) => {
 const handleNodeClick = (
     group: Snap.Element,
     e: MouseEvent,
-    selectedElements: React.MutableRefObject<Set<Snap.Element>>
+    selectedElements: React.MutableRefObject<Set<Snap.Element>>,
 ) => {
     e.stopPropagation();
     e.preventDefault();
@@ -60,17 +60,15 @@ const handleNodeClick = (
     });
 };
 const traverseAndSetDisplay = (node: any, display: string) => {
-  if (node.group) {
-    node.group.attr({ display });
-  }
-  if (node.children) {
-    node.children.forEach((child: any) =>
-      traverseAndSetDisplay(child, display)
-    );
-  }
-  if (node.childs) {
-    node.childs.forEach((child: any) => traverseAndSetDisplay(child, display));
-  }
+    if (node.group) {
+        node.group.attr({ display });
+    }
+    if (node.children) {
+        node.children.forEach((child: any) => traverseAndSetDisplay(child, display));
+    }
+    if (node.childs) {
+        node.childs.forEach((child: any) => traverseAndSetDisplay(child, display));
+    }
 };
 
 const handleTitleClick = (
@@ -82,135 +80,130 @@ const handleTitleClick = (
   e.stopPropagation();
   e.preventDefault();
 
-  const node = group.node.associatedNode;
-  node.group = group;
-  const isSelected = selectedTitle.current.has(group);
-  if (isSelected) {
-    selectedTitle.current.delete(group);
-    group.attr({ opacity: 1 });
-    if (node && node.children) {
-      traverseChilds(node, false, selectedElements.current);
+    const node = group.node.associatedNode;
+    node.group = group;
+    const isSelected = selectedTitle.current.has(group);
+    if (isSelected) {
+        selectedTitle.current.delete(group);
+        group.attr({ opacity: 1 });
+        if (node && node.children) {
+            traverseChilds(node, false, selectedElements.current);
+        }
+        if (node && node.siblings) {
+            addSiblingNodes(node.siblings);
+            // Restore the original layout
+            //  adjustLayout(node.parent);
+        }
+    } else {
+        selectedTitle.current.add(group);
+        group.attr({ opacity: 0.7 });
+        if (node && node.children) {
+            traverseChilds(node, true, selectedElements.current);
+        }
+        if (node && node.siblings) {
+            // Store the original positions and dimensions of the siblings
+            node.siblings.forEach((sibling: any) => {
+                sibling.originalX0 = sibling.x0;
+                sibling.originalX1 = sibling.x1;
+                sibling.originalY0 = sibling.y0;
+                sibling.originalY1 = sibling.y1;
+            });
+            removeSiblingNodes(node.siblings);
+            // Adjust the layout to fill the space left by the hidden siblings
+            //adjustLayout(node);
+        }
     }
-    if (node && node.siblings) {
-      addSiblingNodes(node.siblings);
-      // Restore the original layout
-      //  adjustLayout(node.parent);
-    }
-  } else {
-    selectedTitle.current.add(group);
-    group.attr({ opacity: 0.7 });
-    if (node && node.children) {
-      traverseChilds(node, true, selectedElements.current);
-    }
-    if (node && node.siblings) {
-      // Store the original positions and dimensions of the siblings
-      node.siblings.forEach((sibling: any) => {
-        sibling.originalX0 = sibling.x0;
-        sibling.originalX1 = sibling.x1;
-        sibling.originalY0 = sibling.y0;
-        sibling.originalY1 = sibling.y1;
-      });
-      removeSiblingNodes(node.siblings);
-      // Adjust the layout to fill the space left by the hidden siblings
-      adjustLayout(node);
-    }
-  }
-  const rect = group.select("rect");
-  if (rect) rect.attr({ opacity: group.attr("opacity") });
-  const texts = group.selectAll("text");
-  texts.forEach((text: Snap.Element) => {
-    text.attr({ opacity: group.attr("opacity") });
-  });
+    const rect = group.select('rect');
+    if (rect) rect.attr({ opacity: group.attr('opacity') });
+    const texts = group.selectAll('text');
+    texts.forEach((text: Snap.Element) => {
+        text.attr({ opacity: group.attr('opacity') });
+    });
 };
 
 const adjustLayout = (node: any) => {
-  if (!node || !node.children) return;
+    if (!node || !node.children) return;
 
-  // Filter visible children
-  const visibleChildren = node.children.filter(
-    (child: any) => child.group.attr("display") !== "none"
-  );
+    // Filter visible children
+    const visibleChildren = node.children.filter((child: any) => child.group.attr('display') !== 'none');
 
-  // Create a new hierarchy with visible children
-  const visibleRoot = hierarchy({ children: visibleChildren }).each(
-    (d: any) => {
-      d.value = d.data.value || 0;
-      d.name = d.data.name;
-    }
-  );
+    // Create a new hierarchy with visible children
+    const visibleRoot = hierarchy({ children: visibleChildren }).each((d: any) => {
+        d.value = d.data.value || 0;
+        d.name = d.data.name;
+    });
 
-  // Apply treemap layout to the visible children
-  const visibleTree = treemap()
-    .size([node.x1 - node.x0, node.y1 - node.y0])
-    .paddingOuter(1)
-    .paddingInner(1)
-    .round(true)(visibleRoot);
+    // Apply treemap layout to the visible children
+    const visibleTree = treemap()
+        .size([node.x1 - node.x0, node.y1 - node.y0])
+        .paddingOuter(1)
+        .paddingInner(1)
+        .round(true)(visibleRoot);
 
-  // Assign new layout positions to visible children
-  visibleTree.each((d: any, i: number) => {
-    const child = visibleChildren[i];
-    child.x0 = node.x0 + d.x0;
-    child.x1 = node.x0 + d.x1;
-    child.y0 = node.y0 + d.y0;
-    child.y1 = node.y0 + d.y1;
+    // Assign new layout positions to visible children
+    visibleTree.each((d: any, i: number) => {
+        const child = visibleChildren[i];
+        child.x0 = node.x0 + d.x0;
+        child.x1 = node.x0 + d.x1;
+        child.y0 = node.y0 + d.y0;
+        child.y1 = node.y0 + d.y1;
 
-    // Update the group and its elements
-    if (child.group) {
-      child.group.transform(`translate(${child.x0},${child.y0})`);
-      const rect = child.group.select("rect");
-      if (rect)
-        rect.attr({ width: child.x1 - child.x0, height: child.y1 - child.y0 });
-      const texts = child.group.selectAll("text");
-      texts.forEach((text: Snap.Element) => {
-        text.attr({
-          x: (child.x1 - child.x0) / 2,
-          y: (child.y1 - child.y0) / 2,
-        });
-      });
-    }
-  });
+        // Update the group and its elements
+        if (child.group) {
+            child.group.transform(`translate(${child.x0},${child.y0})`);
+            const rect = child.group.select('rect');
+            if (rect) rect.attr({ width: child.x1 - child.x0, height: child.y1 - child.y0 });
+            const texts = child.group.selectAll('text');
+            texts.forEach((text: Snap.Element) => {
+                text.attr({
+                    x: (child.x1 - child.x0) / 2,
+                    y: (child.y1 - child.y0) / 2,
+                });
+            });
+        }
+    });
 };
 
 const removeSiblingNodes = (siblings: any[]) => {
-  siblings.forEach((sibling: any) => {
-    traverseAndSetDisplay(sibling, "none");
-  });
+    siblings.forEach((sibling: any) => {
+        traverseAndSetDisplay(sibling, 'none');
+    });
 };
 
 const addSiblingNodes = (siblings: any[]) => {
-  siblings.forEach((sibling: any) => {
-    traverseAndSetDisplay(sibling, "block");
-    // Restore the original positions and dimensions
-    if (sibling.originalX0 !== undefined) {
-      sibling.x0 = sibling.originalX0;
-      sibling.x1 = sibling.originalX1;
-      sibling.y0 = sibling.originalY0;
-      sibling.y1 = sibling.originalY1;
-    }
-    // Update the position of the group and its elements
-    if (sibling.group) {
-      sibling.group.transform(`translate(${sibling.x0},${sibling.y0})`);
-      const rect = sibling.group.select("rect");
-      if (rect)
-        rect.attr({
-          x: 0,
-          y: 0,
-          width: sibling.x1 - sibling.x0,
-          height: sibling.y1 - sibling.y0,
-        });
-      const texts = sibling.group.selectAll("text");
-      texts.forEach((text: Snap.Element) => {
-        text.attr({ x: 8, y: 14 });
-      });
-    }
-  });
+    siblings.forEach((sibling: any) => {
+        traverseAndSetDisplay(sibling, 'block');
+        // Restore the original positions and dimensions
+        if (sibling.originalX0 !== undefined) {
+            sibling.x0 = sibling.originalX0;
+            sibling.x1 = sibling.originalX1;
+            sibling.y0 = sibling.originalY0;
+            sibling.y1 = sibling.originalY1;
+        }
+        // Update the position of the group and its elements
+        if (sibling.group) {
+            sibling.group.transform(`translate(${sibling.x0},${sibling.y0})`);
+            const rect = sibling.group.select('rect');
+            if (rect)
+                rect.attr({
+                    x: 0,
+                    y: 0,
+                    width: sibling.x1 - sibling.x0,
+                    height: sibling.y1 - sibling.y0,
+                });
+            const texts = sibling.group.selectAll('text');
+            texts.forEach((text: Snap.Element) => {
+                text.attr({ x: 8, y: 14 });
+            });
+        }
+    });
 };
 const renderLeafNode = (
-  paper: Snap.Paper,
-  node: any,
-  group: Snap.Element,
-  selectedElements: React.MutableRefObject<Set<Snap.Element>>,
-  enableMeasure: boolean
+    paper: Snap.Paper,
+    node: any,
+    group: Snap.Element,
+    selectedElements: React.MutableRefObject<Set<Snap.Element>>,
+    enableMeasure: boolean,
 ) => {
     group.attr({ display: 'block' });
     group.node.associatedNode = node;
@@ -230,7 +223,7 @@ const renderLeafNode = (
         )
         .attr({
             'text-anchor': 'middle',
-            'display': enableMeasure? 'block' : 'none',
+            display: enableMeasure ? 'block' : 'none',
             'dominant-baseline': 'middle',
             fill: '#fff',
             'font-size': '14px',
@@ -254,16 +247,16 @@ const renderLeafNode = (
     group.add(rect);
     group.add(text);
     group.add(valueText);
-    group.addClass("leaf-node");
+    group.addClass('leaf-node');
     group.click((e: MouseEvent) => handleNodeClick(group, e, selectedElements));
 };
 const renderInternalNode = (
-  paper: Snap.Paper,
-  node: any,
-  group: Snap.Element,
-  selectedTitle: React.MutableRefObject<Set<Snap.Element>>,
-  selectedElements: React.MutableRefObject<Set<Snap.Element>>,
-  enableMeasure: boolean
+    paper: Snap.Paper,
+    node: any,
+    group: Snap.Element,
+    selectedTitle: React.MutableRefObject<Set<Snap.Element>>,
+    selectedElements: React.MutableRefObject<Set<Snap.Element>>,
+    enableMeasure: boolean,
 ) => {
     const titleHeight = 30;
     const childs: any[] = [];
@@ -387,11 +380,11 @@ const setupLassoSelection = (
     });
 };
 const renderTreemap = (
-  paper: Snap.Paper,
-  tree: any,
-  selectedElements: React.MutableRefObject<Set<Snap.Element>>,
-  selectedTitle: React.MutableRefObject<Set<Snap.Element>>,
-  enableMeasure: boolean
+    paper: Snap.Paper,
+    tree: any,
+    selectedElements: React.MutableRefObject<Set<Snap.Element>>,
+    selectedTitle: React.MutableRefObject<Set<Snap.Element>>,
+    enableMeasure: boolean,
 ) => {
     const traverse = (node: any) => {
         const group = paper.group();
