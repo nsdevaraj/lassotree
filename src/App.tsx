@@ -735,19 +735,8 @@ const data = {
 };;
 
 function App() {
-  return (
-    <div className="min-h-screen bg-gray-100 p-8">
-      <div className="max-w-7xl mx-auto">
-        <h1 className="text-3xl font-bold text-gray-800 mb-6">Company Structure Visualization</h1>
-        <div className="bg-white p-6 rounded-lg shadow-lg">
-          <p className="text-gray-600 mb-4">
-            Click elements to select individually, or use lasso selection by clicking and dragging.
-            Hover over elements to see full hierarchy path.
-          </p>
-          <Treemap data={data} width={2000} height={1400} />
-        </div>
-      </div>
-    </div>
+  return ( 
+          <Treemap data={data} width={2000} height={1400} />  
   );
 }
 

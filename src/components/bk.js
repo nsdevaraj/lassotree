@@ -69,6 +69,7 @@ const traverseAndSetDisplay = (node: any, display: string) => {
         node.childs.forEach((child: any) => traverseAndSetDisplay(child, display));
     }
 };
+
 const handleTitleClick = (
     group: Snap.Element,
     e: MouseEvent,
@@ -173,7 +174,7 @@ const addSiblingNodes = (siblings: any[]) => {
             if (rect) rect.attr({ x: 0, y: 0, width: sibling.x1 - sibling.x0, height: sibling.y1 - sibling.y0 });
             const texts = sibling.group.selectAll('text');
             texts.forEach((text: Snap.Element) => {
-                text.attr({ x: 8, y: 14 });
+                text.attr({ x: (sibling.x1 - sibling.x0) / 2, y: (sibling.y1 - sibling.y0) / 2 });
             });
         }
     });
