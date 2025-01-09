@@ -71,46 +71,134 @@ const traverseAndSetDisplay = (node: any, display: string) => {
     }
 };
 
-
-const handleTitleClick = (
+const expandWithAnimation = (node: any) => {
+    // Ensure the node has a parent
+    if (!node.parent) return;
+  
+    // Get the parent's dimensions
+    const parent = node.parent;
+    const parentWidth = parent.x1 - parent.x0;
+    const parentHeight = parent.y1 - parent.y0;
+  
+    // Set the selected node's dimensions to match the parent
+    const newNode = hierarchy(node.data).sum((d: any) => d.value || 0);
+    const newTree = treemap()
+      .size([parentWidth, parentHeight])
+      .paddingOuter(1)
+      .paddingInner(1)
+      .round(true)(newNode);
+  
+    // Function to animate node expansion
+    const animateNode = (currentNode: any, newDimensions: any) => {
+      return new Promise((resolve) => {
+        const group = currentNode.group;
+        if (!group) return resolve();
+  
+        // Animate the group's transform and size
+        const dx = newDimensions.x - (currentNode.x1 - currentNode.x0);
+        const dy = newDimensions.y - (currentNode.y1 - currentNode.y0);
+        const dw = newDimensions.width - (currentNode.x1 - currentNode.x0);
+        const dh = newDimensions.height - (currentNode.y1 - currentNode.y0);
+  
+        group.animate({ transform: `translate(${parent.x0},${parent.y0})` }, 500, mina.easeout);
+        group.select('rect').animate({ width: parentWidth, height: parentHeight }, 500, mina.easeout, resolve);
+      });
+    };
+  
+    // Function to animate children
+    const animateChildren = (children: any[], newLayout: any) => {
+      return Promise.all(
+        children.map((child, index) => {
+          const newChild = newLayout.children[index];
+          if (!newChild) return Promise.resolve();
+  
+          return animateNode(child, {
+            x: newChild.x0,
+            y: newChild.y0,
+            width: newChild.x1 - newChild.x0,
+            height: newChild.y1 - newChild.y0,
+          });
+        })
+      );
+    };
+  
+    // Start the animation
+    animateNode(node, {
+      x: parent.x0,
+      y: parent.y0,
+      width: parentWidth,
+      height: parentHeight,
+    })
+      .then(() => {
+        // Update the layout for children
+        if (node.children) {
+          // Apply treemap layout to children
+          const childrenTree = treemap()
+            .size([parentWidth, parentHeight])
+            .paddingOuter(1)
+            .paddingInner(1)
+            .round(true)(hierarchy(node.data));
+  
+          // Animate children to new positions
+          return animateChildren(node.children, childrenTree);
+        }
+        return Promise.resolve();
+      })
+      .then(() => {
+        // Update node's children with new layout
+        if (node.children && node.children.length) {
+          node.children.forEach((child: any, index: number) => {
+            const newChild = childrenTree.children[index];
+            if (newChild) {
+              child.x0 = newChild.x0;
+              child.x1 = newChild.x1;
+              child.y0 = newChild.y0;
+              child.y1 = newChild.y1;
+            }
+          });
+        }
+      });
+  };
+ 
+  const handleTitleClick = (
     group: Snap.Element,
     e: MouseEvent,
     selectedTitle: React.MutableRefObject<Set<Snap.Element>>,
     selectedElements: React.MutableRefObject<Set<Snap.Element>>,
     node: any
-) => {
+  ) => {
     e.stopPropagation();
     e.preventDefault();
-
+  
     const isSelected = selectedTitle.current.has(group);
     if (isSelected) {
-        selectedTitle.current.delete(group);
-        group.attr({ opacity: 1 });
-        if (node && node.children) {
-            traverseChilds(node, false, selectedElements.current);
-        }
-        if (node && node.parent && node.siblings) {
-            addSiblingNodes(node.siblings);
-            // adjustLayout(node.parent);
-        }
+      selectedTitle.current.delete(group);
+      group.attr({ opacity: 1 });
+      if (node && node.children) {
+        traverseChilds(node, false, selectedElements.current);
+      }
+      if (node && node.parent && node.siblings) {
+        addSiblingNodes(node.siblings);
+        adjustLayout(node.parent);
+      }
     } else {
-        selectedTitle.current.add(group);
-        group.attr({ opacity: 0.7 });
-        if (node && node.children) {
-            traverseChilds(node, true, selectedElements.current);
-        }
-        if (node && node.parent && node.siblings) {
-            removeSiblingNodes(node.siblings);
-            // adjustLayout(node);
-        }
+      selectedTitle.current.add(group);
+      group.attr({ opacity: 0.7 });
+      if (node && node.children) {
+        traverseChilds(node, true, selectedElements.current);
+      }
+      if (node && node.parent && node.siblings) {
+        removeSiblingNodes(node.siblings);
+        expandWithAnimation(node);
+      }
     }
     const rect = group.select('rect');
     if (rect) rect.attr({ opacity: group.attr('opacity') });
     const texts = group.selectAll('text');
     texts.forEach((text: Snap.Element) => {
-        if (text) text.attr({ opacity: group.attr('opacity') });
+      text.attr({ opacity: group.attr('opacity') });
     });
-};
+  };
 const adjustLayout = (node: any) => {
     if (!node || !node.children) return;
 
