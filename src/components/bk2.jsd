@@ -72,7 +72,6 @@ const traverseAndSetDisplay = (node: any, display: string) => {
     node.childs.forEach((child: any) => traverseAndSetDisplay(child, display));
   }
 };
-
 const handleTitleClick = (
   group: Snap.Element,
   e: MouseEvent,
@@ -230,7 +229,6 @@ const renderLeafNode = (
         )
         .attr({
             'text-anchor': 'middle',
-            'display': enableMeasure? 'block' : 'none',
             'dominant-baseline': 'middle',
             fill: '#fff',
             'font-size': '14px',
@@ -253,7 +251,7 @@ const renderLeafNode = (
         });
     group.add(rect);
     group.add(text);
-    group.add(valueText);
+    if (enableMeasure) group.add(valueText);
     group.addClass("leaf-node");
     group.click((e: MouseEvent) => handleNodeClick(group, e, selectedElements));
 };
@@ -431,35 +429,40 @@ const traverseChilds = (node: any, selected: boolean = false, selectedElement: S
         });
     }
 };
-
-export const Treemap: React.FC<TreemapProps> = ({data, width = 2000, height = 1400, enableMeasure = false }) => {
-  const svgRef = useRef<SVGSVGElement>(null);
-  const paperRef = useRef(null);
-  const selectedElements = useRef<Set<Snap.Element>>(new Set());
-  const selectedTitle = useRef<Set<Snap.Element>>(new Set());
-  // const [data] = useState<TreemapData>(TreeMapUtils.getTreeMapData());
-  useEffect(() => {
-      if (!svgRef.current) return;
-      paperRef.current = Snap(svgRef.current);
-      paperRef.current.clear();
-      const treemapLayout = treemap()
-          .size([width, height])
-          .paddingOuter(1) // Increase outer padding
-          .paddingTop(25) // Increase top padding for title
-          .paddingInner(1) // Increase inner padding between nodes
-          .round(true);
-      const root = hierarchy(data)
-          .sum((d) => d.value || 0)
-          .sort((a, b) => (b.value || 0) - (a.value || 0));
-      const tree = treemapLayout(root);
-      renderTreemap(paperRef.current, tree, selectedElements, selectedTitle, enableMeasure);
-      setupLassoSelection(paperRef.current, svgRef, selectedElements);
-  }, [data, width, height]);
-  useEffect(() => {
-      return () => {
-          paperRef.current?.clear();
-          selectedElements.current.clear();
-      };
-  }, []);
-  return <svg ref={svgRef} width={width} height={height} style={{ border: '1px solid #ccc' }} />;
+export const Treemap: React.FC<TreemapProps> = ({data, width = dataEngine.width, height = dataEngine.height, enableMeasure = true}) => {
+    const svgRef = useRef<SVGSVGElement>(null);
+    const paperRef = useRef(null);
+    const selectedElements = useRef<Set<Snap.Element>>(new Set());
+    const selectedTitle = useRef<Set<Snap.Element>>(new Set());
+    // const [data] = useState<TreemapData>(TreeMapUtils.getTreeMapData());
+    useEffect(() => {
+        if (!svgRef.current) return;
+        paperRef.current = Snap(svgRef.current);
+        paperRef.current.clear();
+        const treemapLayout = treemap()
+            .size([width, height])
+            .paddingOuter(1) // Increase outer padding
+            .paddingTop(25) // Increase top padding for title
+            .paddingInner(1) // Increase inner padding between nodes
+            .round(true);
+        const root = hierarchy(data)
+            .sum((d) => d.value || 0)
+            .sort((a, b) => (b.value || 0) - (a.value || 0));
+        const tree = treemapLayout(root);
+        renderTreemap(
+          paperRef.current,
+          tree,
+          enableMeasure,
+          selectedElements,
+          selectedTitle
+        );
+        setupLassoSelection(paperRef.current, svgRef, selectedElements);
+    }, [data, width, height]);
+    useEffect(() => {
+        return () => {
+            paperRef.current?.clear();
+            selectedElements.current.clear();
+        };
+    }, []);
+    return <svg ref={svgRef} width={width} height={height} style={{ border: '1px solid #ccc' }} />;
 };
