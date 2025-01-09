@@ -6,13 +6,11 @@ interface TreemapData {
     value?: number;
     children?: TreemapData[];
 }
-
 interface TreemapProps {
     data: TreemapData;
     width: number;
     height: number;
 }
-
 // Colors for different hierarchy levels - from light to dark
 const levelColors = [
     '#64B5F6', // Level 0 - Content
@@ -21,7 +19,6 @@ const levelColors = [
     '#1565C0', // Level 3 - Content
     '#0D47A1', // Level 4 - Content
 ];
-
 // Title background colors - darker shades
 const titleColors = [
     '#1565C0', // Level 0 - Title
@@ -30,7 +27,6 @@ const titleColors = [
     '#072654', // Level 3 - Title
     '#051B3B', // Level 4 - Title
 ];
-
 const getMousePosition = (e: MouseEvent, svgElement: SVGSVGElement | null) => {
     const svgRect = svgElement?.getBoundingClientRect();
     return {
@@ -38,7 +34,6 @@ const getMousePosition = (e: MouseEvent, svgElement: SVGSVGElement | null) => {
         y: e.clientY - (svgRect?.top || 0),
     };
 };
-
 const handleNodeClick = (
     group: Snap.Element,
     e: MouseEvent,
@@ -64,6 +59,30 @@ const handleNodeClick = (
     });
 };
 
+const handleTitleClick = (
+    group: Snap.Element,
+    e: MouseEvent,
+    selectedTitle: React.MutableRefObject<Set<Snap.Element>>,
+) => {
+    e.stopPropagation();
+    e.preventDefault();
+    const isSelected = selectedTitle.current.has(group);
+    let newOpacity;
+    if (isSelected) {
+        selectedTitle.current.delete(group);
+        newOpacity = 1;
+    } else {
+        selectedTitle.current.add(group);
+        newOpacity = 0.7;
+    }
+    group.attr({ opacity: newOpacity });
+    const rect = group.select('rect');
+    if (rect) rect.attr({ opacity: newOpacity });
+    const texts = group.selectAll('text');
+    texts.forEach((text: Snap.Element) => {
+        text.attr({ opacity: newOpacity });
+    }); 
+};
 const renderLeafNode = (
     paper: Snap.Paper,
     node: any,
@@ -71,19 +90,18 @@ const renderLeafNode = (
     selectedElements: React.MutableRefObject<Set<Snap.Element>>,
 ) => {
     const rect = paper.rect(node.x0, node.y0, node.x1 - node.x0, node.y1 - node.y0);
-
     rect.attr({
         fill: levelColors[Math.min(node.depth, levelColors.length - 1)],
         stroke: '#fff',
         strokeWidth: 2,
         cursor: 'cell',
     });
-
     const valueText = paper
         .text(
             node.x0 + (node.x1 - node.x0) / 2,
             node.y0 + (node.y1 - node.y0) / 2 + 15,
             `${node.value}m`
+            //`${getFormatedValue({ value: node.value })}`,
         )
         .attr({
             'text-anchor': 'middle',
@@ -95,7 +113,6 @@ const renderLeafNode = (
             'user-select': 'none',
             class: 'unselectable',
         });
-
     const text = paper
         .text(node.x0 + (node.x1 - node.x0) / 2, node.y0 + (node.y1 - node.y0) / 2 - 10, node.data.name)
         .attr({
@@ -108,15 +125,13 @@ const renderLeafNode = (
             'user-select': 'none',
             class: 'unselectable',
         });
-
     group.add(rect);
     group.add(text);
     group.add(valueText);
-
+    group.addClass('leaf-node');
     group.click((e: MouseEvent) => handleNodeClick(group, e, selectedElements));
 };
-
-const renderInternalNode = (paper: Snap.Paper, node: any, group: Snap.Element) => {
+const renderInternalNode = (paper: Snap.Paper, node: any, group: Snap.Element, selectedTitle: React.MutableRefObject<Set<Snap.Element>>) => {
     const titleHeight = 30;
     const titleBg = paper.rect(node.x0, node.y0, node.x1 - node.x0, titleHeight).attr({
         fill: titleColors[Math.min(node.depth, titleColors.length - 1)],
@@ -125,10 +140,8 @@ const renderInternalNode = (paper: Snap.Paper, node: any, group: Snap.Element) =
         cursor: 'pointer',
         class: 'unselectable',
     });
-
     const valueText = node.value ? ` (${node.value}m)` : '';
     //const valueText = node.value ? ` (${getFormatedValue({ value: node.value })})` : '';
-
     const title = paper.text(node.x0 + 8, node.y0 + titleHeight / 2, node.data.name + valueText).attr({
         'font-size': '12px',
         'font-weight': 'bold',
@@ -140,13 +153,11 @@ const renderInternalNode = (paper: Snap.Paper, node: any, group: Snap.Element) =
         'pointer-events': 'none',
         class: 'unselectable',
     });
-
     title.node.style.textShadow = '0px 1px 2px rgba(0,0,0,0.3)';
-    // group.data("nodeData", node);
     group.add(titleBg);
     group.add(title);
+    group.click((e: MouseEvent) => handleTitleClick(group, e, selectedTitle));
 };
-
 const setupLassoSelection = (
     paper: Snap.Paper,
     svgRef: React.RefObject<SVGSVGElement>,
@@ -156,13 +167,10 @@ const setupLassoSelection = (
     let isDragging = false;
     let lassoPath: Snap.Element | null = null;
     let startPoint = { x: 0, y: 0 };
-
     paper.mousedown((e: MouseEvent) => {
         isDrawing = true;
         startPoint = getMousePosition(e, svgRef.current);
-
         if (lassoPath) lassoPath.remove();
-
         lassoPath = paper.rect(startPoint.x, startPoint.y, 0, 0).attr({
             stroke: '#000',
             strokeWidth: 2,
@@ -171,35 +179,29 @@ const setupLassoSelection = (
             cursor: 'crosshair',
         });
     });
-
     paper.mousemove((e: MouseEvent) => {
         if (!isDrawing || !lassoPath) return;
         isDragging = true;
         const currentPoint = getMousePosition(e, svgRef.current);
-
         const width = currentPoint.x - startPoint.x;
         const height = currentPoint.y - startPoint.y;
-
         if (width >= 0) {
             lassoPath.attr({ x: startPoint.x, width });
         } else {
             lassoPath.attr({ x: currentPoint.x, width: Math.abs(width) });
         }
-
         if (height >= 0) {
             lassoPath.attr({ y: startPoint.y, height });
         } else {
             lassoPath.attr({ y: currentPoint.y, height: Math.abs(height) });
         }
     });
-
     paper.mouseup(() => {
         isDrawing = false;
         if (!isDragging) return;
         isDragging = false;
         if (lassoPath) {
             const lassoBBox = lassoPath.getBBox();
-
             paper.selectAll('g').forEach((element: Snap.Element) => {
                 const elementBBox = element.getBBox();
                 const intersects = !(
@@ -208,53 +210,50 @@ const setupLassoSelection = (
                     elementBBox.y > lassoBBox.y + lassoBBox.height ||
                     elementBBox.y + elementBBox.height < lassoBBox.y
                 );
-
                 if (intersects) {
+                  if (element.hasClass('leaf-node')) {
                     // if (selectedElements.current.has(element)) {
-                    //     selectedElements.current.delete(element);
                     //     element.select('rect').attr({ opacity: 1 });
-                    // } else {
-                        selectedElements.current.add(element);
+                    //     selectedElements.current.delete(element);
+                    //     console.log(' selected', element)
+                    // }else{
                         element.select('rect').attr({ opacity: 0.7 });
-                   // }
+                        selectedElements.current.add(element);
+                        console.log('not selected', element)
+                    // }
+                  }
                 }
             });
-
             setTimeout(() => {
                 if (lassoPath) lassoPath.remove();
             }, 1000);
         }
     });
 };
-
-const renderTreemap = (paper: Snap.Paper, tree: any, selectedElements: React.MutableRefObject<Set<Snap.Element>>) => {
+const renderTreemap = (paper: Snap.Paper, tree: any, selectedElements: React.MutableRefObject<Set<Snap.Element>>, selectedTitle: React.MutableRefObject<Set<Snap.Element>>) => {
     const traverse = (node: any) => {
         const group = paper.group();
-
         if (!node.children) {
             renderLeafNode(paper, node, group, selectedElements);
         } else {
-            renderInternalNode(paper, node, group);
+            renderInternalNode(paper, node, group, selectedTitle);
             node.children.forEach((child: any) => {
                 traverse(child);
             });
         }
     };
-
     traverse(tree);
 };
-
 export const Treemap: React.FC<TreemapProps> = ({ data, width = 2000, height = 1400 }) => {
     const svgRef = useRef<SVGSVGElement>(null);
     const paperRef = useRef(null);
     const selectedElements = useRef<Set<Snap.Element>>(new Set());
+    const selectedTitle = useRef<Set<Snap.Element>>(new Set());
     // const [data, setData] = useState<TreemapData>(TreeMapUtils.getTreeMapData());
     useEffect(() => {
         if (!svgRef.current) return;
-
         paperRef.current = Snap(svgRef.current);
         paperRef.current.clear();
-
         const treemapLayout = treemap()
             .size([width, height])
             .paddingOuter(1) // Increase outer padding
@@ -264,19 +263,15 @@ export const Treemap: React.FC<TreemapProps> = ({ data, width = 2000, height = 1
         const root = hierarchy(data)
             .sum((d) => d.value || 0)
             .sort((a, b) => (b.value || 0) - (a.value || 0));
-
         const tree = treemapLayout(root);
-
-        renderTreemap(paperRef.current, tree, selectedElements);
+        renderTreemap(paperRef.current, tree, selectedElements, selectedTitle);
         setupLassoSelection(paperRef.current, svgRef, selectedElements);
     }, [data, width, height]);
-
     useEffect(() => {
         return () => {
             paperRef.current?.clear();
             selectedElements.current.clear();
         };
     }, []);
-
     return <svg ref={svgRef} width={width} height={height} style={{ border: '1px solid #ccc' }} />;
 };
