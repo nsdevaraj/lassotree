@@ -63,17 +63,43 @@ const handleTitleClick = (
     group: Snap.Element,
     e: MouseEvent,
     selectedTitle: React.MutableRefObject<Set<Snap.Element>>,
+    selectedElements: React.MutableRefObject<Set<Snap.Element>>,
 ) => {
     e.stopPropagation();
     e.preventDefault();
+
+    const node = group.node.associatedNode;    
+    node.group = group;
     const isSelected = selectedTitle.current.has(group);
     let newOpacity;
     if (isSelected) {
         selectedTitle.current.delete(group);
         newOpacity = 1;
+        if (node && node.children) {
+             traverseChilds(node, false, selectedElements);
+        }
+        if (node && node.siblings) {
+            node.siblings.forEach((sibling: any) => {
+                const siblingGroup = sibling.group;
+                if (siblingGroup) {
+                    siblingGroup.attr({ opacity: 1 });
+                }
+            });
+        }
     } else {
         selectedTitle.current.add(group);
         newOpacity = 0.7;
+        if (node && node.children) {
+            traverseChilds(node, true, selectedElements);
+        }
+        if (node && node.siblings) {
+            node.siblings.forEach((sibling: any) => {
+                const siblingGroup = sibling.group;
+                if (siblingGroup) {
+                    siblingGroup.attr({ opacity: 0 });
+                }
+            });
+        }
     }
     group.attr({ opacity: newOpacity });
     const rect = group.select('rect');
@@ -89,6 +115,8 @@ const renderLeafNode = (
     group: Snap.Element,
     selectedElements: React.MutableRefObject<Set<Snap.Element>>,
 ) => {
+    group.node.associatedNode = node;
+    node.group = group;
     const rect = paper.rect(node.x0, node.y0, node.x1 - node.x0, node.y1 - node.y0);
     rect.attr({
         fill: levelColors[Math.min(node.depth, levelColors.length - 1)],
@@ -101,7 +129,6 @@ const renderLeafNode = (
             node.x0 + (node.x1 - node.x0) / 2,
             node.y0 + (node.y1 - node.y0) / 2 + 15,
             `${node.value}m`
-            //`${getFormatedValue({ value: node.value })}`,
         )
         .attr({
             'text-anchor': 'middle',
@@ -131,8 +158,32 @@ const renderLeafNode = (
     group.addClass('leaf-node');
     group.click((e: MouseEvent) => handleNodeClick(group, e, selectedElements));
 };
-const renderInternalNode = (paper: Snap.Paper, node: any, group: Snap.Element, selectedTitle: React.MutableRefObject<Set<Snap.Element>>) => {
-    const titleHeight = 30;
+const renderInternalNode = (paper: Snap.Paper, node: any, group: Snap.Element, selectedTitle: React.MutableRefObject<Set<Snap.Element>>, selectedElements: React.MutableRefObject<Set<Snap.Element>>) => {
+    const titleHeight = 30; 
+    const childs: any[] = [];
+    if(node.children){
+        for (const child of node.children) {
+            if (!child.children) {
+                childs.push(child);
+            }
+        }
+    }
+    node.childs = childs;
+    
+    const siblings: any[] = [];
+    if (node.parent?.children?.length) {
+        for (const child of node.parent.children) {
+            if (child.data.name !== node.data.name) {
+                siblings.push(child);
+            }
+        }
+    } 
+    node.siblings = siblings;
+    // Associate the node with the group
+    group.node.associatedNode = node;
+    node.group = group;
+    
+    
     const titleBg = paper.rect(node.x0, node.y0, node.x1 - node.x0, titleHeight).attr({
         fill: titleColors[Math.min(node.depth, titleColors.length - 1)],
         stroke: '#fff',
@@ -141,7 +192,6 @@ const renderInternalNode = (paper: Snap.Paper, node: any, group: Snap.Element, s
         class: 'unselectable',
     });
     const valueText = node.value ? ` (${node.value}m)` : '';
-    //const valueText = node.value ? ` (${getFormatedValue({ value: node.value })})` : '';
     const title = paper.text(node.x0 + 8, node.y0 + titleHeight / 2, node.data.name + valueText).attr({
         'font-size': '12px',
         'font-weight': 'bold',
@@ -156,7 +206,7 @@ const renderInternalNode = (paper: Snap.Paper, node: any, group: Snap.Element, s
     title.node.style.textShadow = '0px 1px 2px rgba(0,0,0,0.3)';
     group.add(titleBg);
     group.add(title);
-    group.click((e: MouseEvent) => handleTitleClick(group, e, selectedTitle));
+    group.click((e: MouseEvent) => handleTitleClick(group, e, selectedTitle, selectedElements));
 };
 const setupLassoSelection = (
     paper: Snap.Paper,
@@ -236,13 +286,38 @@ const renderTreemap = (paper: Snap.Paper, tree: any, selectedElements: React.Mut
         if (!node.children) {
             renderLeafNode(paper, node, group, selectedElements);
         } else {
-            renderInternalNode(paper, node, group, selectedTitle);
+            renderInternalNode(paper, node, group, selectedTitle, selectedElements);
             node.children.forEach((child: any) => {
                 traverse(child);
             });
         }
     };
     traverse(tree);
+};
+const traverseChilds = (node: any, selected: boolean = false, selectedElements: Set<Snap.Element>) => {
+    // If the node has children, traverse through them
+    if (node.children) {
+        node.children.forEach((child: any) => { 
+                // Recursively traverse child's children
+                traverseChilds(child, selected, selectedElements); 
+        });
+    }
+    
+    // If the node has direct leaf children (childs), modify their opacity
+    if (node.childs) {
+        node.childs.forEach((leafChild: any) => {
+            console.log('leafChild', leafChild.group)
+            if (leafChild.group) { 
+                if (selected) {
+                    leafChild.group.select('rect').attr({ opacity: 0.7 });
+                    selectedElements.current.add(leafChild.group);
+                }else{
+                    leafChild.group.select('rect').attr({ opacity: 1 });
+                    selectedElements.current.delete(leafChild.group);
+                }
+            }
+        });
+    }
 };
 export const Treemap: React.FC<TreemapProps> = ({ data, width = 2000, height = 1400 }) => {
     const svgRef = useRef<SVGSVGElement>(null);
