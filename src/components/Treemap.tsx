@@ -72,56 +72,56 @@ const traverseAndSetDisplay = (node: any, display: string) => {
 };
 
 const expandWithAnimation = (node: any) => {
-    // Get parent's dimensions
+    // Ensure the node has a parent
+    if (!node.parent) return;
+  
+    // Get the parent's dimensions
     const parent = node.parent;
     const parentWidth = parent.x1 - parent.x0;
     const parentHeight = parent.y1 - parent.y0;
-  
-    // Create a new hierarchy from the selected node
-    const newRoot = hierarchy(node.data).sum((d) => d.value || 0);
-    const newTree = treemap()
-      .size([parentWidth, parentHeight])
-      .paddingOuter(1)
-      .paddingInner(1)
-      .round(true)(newRoot);
-  
-    // Function to animate a group to new position and size
-    const animateGroup = (group: Snap.Element, newGroup: any) => {
+   
+    // Function to animate node expansion
+    const animateNode = (currentNode: any) => {
       return new Promise((resolve) => {
-        group.animate({ transform: `translate(${newGroup.x0},${newGroup.y0})` }, 500, mina.easeout, resolve);
-        const rect = group.select('rect');
-        rect.animate({ width: newGroup.x1 - newGroup.x0, height: newGroup.y1 - newGroup.y0 }, 500, mina.easeout, resolve);
+        const group = currentNode.group;
+        if (!group) return resolve();
+    
+        group.animate({ transform: `translate(${node.x0},${node.originalY0})` }, 500, mina.easeout);
+        group.select('rect').animate({ width: parentWidth, height: parentHeight }, 500, mina.easeout, resolve);
       });
     };
   
-    // Recursive function to map and animate nodes
-    const mapNode = (oldNode: any, newNode: any) => {
-      const groupPromise = animateGroup(oldNode.group, newNode);
-      if (oldNode.children && newNode.children) {
-        const childrenPromises = oldNode.children.map((child: any, index: number) => {
-          return mapNode(child, newNode.children[index]);
-        });
-        return Promise.all([groupPromise, ...childrenPromises]);
-      }
-      return groupPromise;
+    // Function to animate children
+    const animateChildren = (children: any[], newLayout: any) => {
+      return Promise.all(
+        children.map((child, index) => {
+          const newChild = newLayout.children[index];
+          if (!newChild) return Promise.resolve();
+  
+          return animateNode(child);
+        })
+      );
     };
   
-    // Start the animation and update node properties after completion
-    mapNode(node, newTree).then(() => {
-      // Update node's x0, x1, y0, y1
-      node.x0 = newTree.x0;
-      node.x1 = newTree.x1;
-      node.y0 = newTree.y0;
-      node.y1 = newTree.y1;
+    // Start the animation
+    animateNode(node)
+      .then(() => {
+        // Update the layout for children
+        if (node.children) {
+          // Apply treemap layout to children
+          const childrenTree = treemap()
+            .size([parentWidth, parentHeight])
+            .paddingOuter(1)
+            .paddingInner(1)
+            .round(true)(hierarchy(node.data));
   
-      // Recursively update children's properties
-      if (node.children && newTree.children) {
-        node.children.forEach((child: any, index: number) => {
-          mapNode(child, newTree.children[index]);
-        });
-      }
-    });
+          // Animate children to new positions
+          return animateChildren(node.children, childrenTree);
+        }
+        return Promise.resolve();
+      }) 
   };
+ 
   const handleTitleClick = (
     group: Snap.Element,
     e: MouseEvent,
@@ -140,8 +140,7 @@ const expandWithAnimation = (node: any) => {
         traverseChilds(node, false, selectedElements.current);
       }
       if (node && node.parent && node.siblings) {
-        addSiblingNodes(node.siblings);
-        adjustLayout(node.parent);
+        addSiblingNodes(node.siblings); 
       }
     } else {
       selectedTitle.current.add(group);
@@ -160,49 +159,7 @@ const expandWithAnimation = (node: any) => {
     texts.forEach((text: Snap.Element) => {
       text.attr({ opacity: group.attr('opacity') });
     });
-  };
-const adjustLayout = (node: any) => {
-    if (!node || !node.children) return;
-
-    // Filter visible children and ensure they have a group and attr
-    const visibleChildren = node.children
-        .filter((child: any) => child && child.group && child.group.attr && child.group.attr('display') !== 'none')
-        .filter((child: any) => child.x0 !== undefined && child.y0 !== undefined);
-
-    // Create a new hierarchy with visible children
-    const visibleRoot = hierarchy({ children: visibleChildren }).sum((d: any) => d.value || 0);
-
-    // Apply treemap layout to the visible children
-    const visibleTree = treemap()
-        .size([node.x1 - node.x0, node.y1 - node.y0])
-        .paddingOuter(1)
-        .paddingInner(1)
-        .round(true)(visibleRoot);
-
-    // Assign new layout positions to visible children
-    visibleTree.each((d: any, i: number) => {
-        const child = visibleChildren[i];
-        if (!child) return; // Skip if child is undefined
-        child.x0 = node.x0 + d.x0;
-        child.x1 = node.x0 + d.x1;
-        child.y0 = node.y0 + d.y0;
-        child.y1 = node.y0 + d.y1;
-
-        // Update the group and its elements
-        if (child.group) {
-            child.group.transform(`translate(${child.x0},${child.y0})`);
-            const rect = child.group.select('rect');
-            if (rect) rect.attr({ width: child.x1 - child.x0, height: child.y1 - child.y0 });
-            const texts = child.group.selectAll('text');
-            texts.forEach((text: Snap.Element) => {
-                text.attr({
-                    x: (child.x1 - child.x0) / 2,
-                    y: (child.y1 - child.y0) / 2,
-                });
-            });
-        }
-    });
-};
+  }; 
 
 const removeSiblingNodes = (siblings: any[]) => {
     siblings.forEach((sibling: any) => {
