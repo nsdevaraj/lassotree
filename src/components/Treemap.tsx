@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import Snap from 'snapsvg-cjs';
 import { treemap, hierarchy } from 'd3-hierarchy';
 interface TreemapData {
@@ -68,7 +68,7 @@ const handleTitleClick = (
     e.stopPropagation();
     e.preventDefault();
 
-    const node = group.node.associatedNode;    
+    const node = group.node.associatedNode;
     node.group = group;
     const isSelected = selectedTitle.current.has(group);
     let newOpacity;
@@ -76,7 +76,7 @@ const handleTitleClick = (
         selectedTitle.current.delete(group);
         newOpacity = 1;
         if (node && node.children) {
-             traverseChilds(node, false, selectedElements);
+            traverseChilds(node, false, selectedElements.current);
         }
         if (node && node.siblings) {
             node.siblings.forEach((sibling: any) => {
@@ -90,7 +90,7 @@ const handleTitleClick = (
         selectedTitle.current.add(group);
         newOpacity = 0.7;
         if (node && node.children) {
-            traverseChilds(node, true, selectedElements);
+            traverseChilds(node, true, selectedElements.current);
         }
         if (node && node.siblings) {
             node.siblings.forEach((sibling: any) => {
@@ -107,7 +107,7 @@ const handleTitleClick = (
     const texts = group.selectAll('text');
     texts.forEach((text: Snap.Element) => {
         text.attr({ opacity: newOpacity });
-    }); 
+    });
 };
 const renderLeafNode = (
     paper: Snap.Paper,
@@ -161,7 +161,7 @@ const renderLeafNode = (
 const renderInternalNode = (paper: Snap.Paper, node: any, group: Snap.Element, selectedTitle: React.MutableRefObject<Set<Snap.Element>>, selectedElements: React.MutableRefObject<Set<Snap.Element>>) => {
     const titleHeight = 30; 
     const childs: any[] = [];
-    if(node.children){
+    if (node.children) {
         for (const child of node.children) {
             if (!child.children) {
                 childs.push(child);
@@ -169,7 +169,7 @@ const renderInternalNode = (paper: Snap.Paper, node: any, group: Snap.Element, s
         }
     }
     node.childs = childs;
-    
+
     const siblings: any[] = [];
     if (node.parent?.children?.length) {
         for (const child of node.parent.children) {
@@ -177,13 +177,12 @@ const renderInternalNode = (paper: Snap.Paper, node: any, group: Snap.Element, s
                 siblings.push(child);
             }
         }
-    } 
+    }
     node.siblings = siblings;
     // Associate the node with the group
     group.node.associatedNode = node;
     node.group = group;
-    
-    
+
     const titleBg = paper.rect(node.x0, node.y0, node.x1 - node.x0, titleHeight).attr({
         fill: titleColors[Math.min(node.depth, titleColors.length - 1)],
         stroke: '#fff',
@@ -261,17 +260,15 @@ const setupLassoSelection = (
                     elementBBox.y + elementBBox.height < lassoBBox.y
                 );
                 if (intersects) {
-                  if (element.hasClass('leaf-node')) {
-                    // if (selectedElements.current.has(element)) {
-                    //     element.select('rect').attr({ opacity: 1 });
-                    //     selectedElements.current.delete(element);
-                    //     console.log(' selected', element)
-                    // }else{
-                        element.select('rect').attr({ opacity: 0.7 });
-                        selectedElements.current.add(element);
-                        console.log('not selected', element)
-                    // }
-                  }
+                    if (element.hasClass('leaf-node')) {
+                        // if (selectedElements.current.has(element)) {
+                        //     selectedElements.current.delete(element);
+                        //     element.select('rect').attr({ opacity: 1 });
+                        // } else {
+                            selectedElements.current.add(element);
+                            element.select('rect').attr({ opacity: 0.7 });
+                        //}
+                    }
                 }
             });
             setTimeout(() => {
@@ -280,7 +277,12 @@ const setupLassoSelection = (
         }
     });
 };
-const renderTreemap = (paper: Snap.Paper, tree: any, selectedElements: React.MutableRefObject<Set<Snap.Element>>, selectedTitle: React.MutableRefObject<Set<Snap.Element>>) => {
+const renderTreemap = (
+    paper: Snap.Paper,
+    tree: any,
+    selectedElements: React.MutableRefObject<Set<Snap.Element>>,
+    selectedTitle: React.MutableRefObject<Set<Snap.Element>>,
+) => {
     const traverse = (node: any) => {
         const group = paper.group();
         if (!node.children) {
@@ -294,26 +296,26 @@ const renderTreemap = (paper: Snap.Paper, tree: any, selectedElements: React.Mut
     };
     traverse(tree);
 };
-const traverseChilds = (node: any, selected: boolean = false, selectedElements: Set<Snap.Element>) => {
+const traverseChilds = (node: any, selected: boolean = false, selectedElement: Snap.Element) => {
     // If the node has children, traverse through them
     if (node.children) {
-        node.children.forEach((child: any) => { 
-                // Recursively traverse child's children
-                traverseChilds(child, selected, selectedElements); 
+        node.children.forEach((child: any) => {
+            // Recursively traverse child's children
+            traverseChilds(child, selected, selectedElement);
         });
     }
-    
+
     // If the node has direct leaf children (childs), modify their opacity
     if (node.childs) {
         node.childs.forEach((leafChild: any) => {
-            console.log('leafChild', leafChild.group)
-            if (leafChild.group) { 
+            if (leafChild.group) {
                 if (selected) {
+                    // const isSelected = selectedElements.current.has(leafChild.group);
                     leafChild.group.select('rect').attr({ opacity: 0.7 });
-                    selectedElements.current.add(leafChild.group);
-                }else{
+                    selectedElement.add(leafChild.group);
+                } else {
                     leafChild.group.select('rect').attr({ opacity: 1 });
-                    selectedElements.current.delete(leafChild.group);
+                    selectedElement.delete(leafChild.group);
                 }
             }
         });
