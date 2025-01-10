@@ -71,130 +71,38 @@ const traverseAndSetDisplay = (node: any, display: string) => {
     }
 };
 
-const expandWithAnimation = (node: any) => {
-    // Ensure the node has a parent
-    if (!node.parent) return;
-  
-    // Get the parent's dimensions
-    const parent = node.parent;
-    const parentWidth = parent.x1 - parent.x0;
-    const parentHeight = parent.y1 - parent.y0;
-   
-    // Function to animate node expansion
-    const animateNode = (currentNode: any) => {
-      return new Promise((resolve) => {
-        const group = currentNode.group;
-        if (!group) return resolve();
-    
-        group.animate({ transform: `translate(${node.x0},${node.originalY0})` }, 500, mina.easeout);
-        group.select('rect').animate({ width: parentWidth, height: parentHeight }, 500, mina.easeout, resolve);
-      });
-    };
-  
-    // Function to animate children
-    const animateChildren = (children: any[], newLayout: any) => {
-      return Promise.all(
-        children.map((child, index) => {
-          const newChild = newLayout.children[index];
-          if (!newChild) return Promise.resolve();
-  
-          return animateNode(child);
-        })
-      );
-    };
-  
-    // Start the animation
-    animateNode(node)
-      .then(() => {
-        // Update the layout for children
-        if (node.children) {
-          // Apply treemap layout to children
-          const childrenTree = treemap()
-            .size([parentWidth, parentHeight])
-            .paddingOuter(1)
-            .paddingInner(1)
-            .round(true)(hierarchy(node.data));
-  
-          // Animate children to new positions
-          return animateChildren(node.children, childrenTree);
-        }
-        return Promise.resolve();
-      }) 
-  };
- 
-  const handleTitleClick = (
+const handleTitleClick = (
     group: Snap.Element,
     e: MouseEvent,
     selectedTitle: React.MutableRefObject<Set<Snap.Element>>,
     selectedElements: React.MutableRefObject<Set<Snap.Element>>,
-    node: any
-  ) => {
+    node: any,
+) => {
     e.stopPropagation();
     e.preventDefault();
-  
+
     const isSelected = selectedTitle.current.has(group);
     if (isSelected) {
-      selectedTitle.current.delete(group);
-      group.attr({ opacity: 1 });
-      if (node && node.children) {
-        traverseChilds(node, false, selectedElements.current);
-      }
-      if (node && node.parent && node.siblings) {
-        addSiblingNodes(node.siblings); 
-      }
+        selectedTitle.current.delete(group);
+        group.attr({ opacity: 1 });
+        if (node && node.children) {
+            traverseChilds(node, false, selectedElements.current);
+        }
     } else {
-      selectedTitle.current.add(group);
-      group.attr({ opacity: 0.7 });
-      if (node && node.children) {
-        traverseChilds(node, true, selectedElements.current);
-      }
-      if (node && node.parent && node.siblings) {
-        removeSiblingNodes(node.siblings);
-        expandWithAnimation(node);
-      }
+        selectedTitle.current.add(group);
+        group.attr({ opacity: 0.7 });
+        if (node && node.children) {
+            traverseChilds(node, true, selectedElements.current);
+        }
     }
     const rect = group.select('rect');
     if (rect) rect.attr({ opacity: group.attr('opacity') });
     const texts = group.selectAll('text');
     texts.forEach((text: Snap.Element) => {
-      text.attr({ opacity: group.attr('opacity') });
-    });
-  }; 
-
-const removeSiblingNodes = (siblings: any[]) => {
-    siblings.forEach((sibling: any) => {
-        traverseAndSetDisplay(sibling, 'none');
+        text.attr({ opacity: group.attr('opacity') });
     });
 };
 
-const addSiblingNodes = (siblings: any[]) => {
-    siblings.forEach((sibling: any) => {
-        traverseAndSetDisplay(sibling, 'block');
-        // Restore the original positions and dimensions
-        if (sibling.originalX0 !== undefined) {
-            sibling.x0 = sibling.originalX0;
-            sibling.x1 = sibling.originalX1;
-            sibling.y0 = sibling.originalY0;
-            sibling.y1 = sibling.originalY1;
-        }
-        // Update the position of the group and its elements
-        if (sibling.group) {
-            sibling.group.transform(`translate(${sibling.x0},${sibling.y0})`);
-            const rect = sibling.group.select('rect');
-            if (rect)
-                rect.attr({
-                    x: 0,
-                    y: 0,
-                    width: sibling.x1 - sibling.x0,
-                    height: sibling.y1 - sibling.y0,
-                });
-            const texts = sibling.group.selectAll('text');
-            texts.forEach((text: Snap.Element) => {
-                text.attr({ x: 8, y: 14 });
-            });
-        }
-    });
-};
 const renderLeafNode = (
     paper: Snap.Paper,
     node: any,
@@ -266,16 +174,6 @@ const renderInternalNode = (
     }
     node.childs = childs;
 
-    const siblings: any[] = [];
-    if (node.parent?.children?.length) {
-        for (const child of node.parent.children) {
-            if (child.data.name !== node.data.name) {
-                siblings.push(child);
-            }
-        }
-    }
-    node.siblings = siblings;
-
     group.attr({ display: 'block' });
     // Associate the node with the group
     group.node.associatedNode = node;
@@ -309,7 +207,7 @@ const renderInternalNode = (
 const setupLassoSelection = (
     paper: Snap.Paper,
     svgRef: React.RefObject<SVGSVGElement>,
-    selectedElements: React.MutableRefObject<Set<Snap.Element>>
+    selectedElements: React.MutableRefObject<Set<Snap.Element>>,
 ) => {
     let isDrawing = false;
     let isDragging = false;
