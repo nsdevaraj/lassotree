@@ -36,21 +36,23 @@ const getMousePosition = (e: MouseEvent, svgElement: SVGSVGElement | null) => {
     };
 };
 const handleNodeClick = (
-    group: Snap.Element,
-    e: MouseEvent,
-    selectedElements: React.MutableRefObject<Set<Snap.Element>>,
+  group: Snap.Element,
+  e: MouseEvent,
+  selectedElements: React.MutableRefObject<Set<Snap.Element>>,
 ) => {
-    e.stopPropagation();
-    e.preventDefault();
-    const isSelected = selectedElements.current.has(group);
-    let newOpacity;
-    if (isSelected) {
-        selectedElements.current.delete(group);
-        newOpacity = 1;
-    } else {
-        selectedElements.current.add(group);
-        newOpacity = 0.7;
-    }
+  e.stopPropagation();
+  e.preventDefault();
+
+  let newOpacity;
+  if (selectedElements.current.has(group)) {
+      selectedElements.current.delete(group);
+      group.attr({ opacity: 1 });
+      newOpacity = 1;
+  } else {
+      selectedElements.current.add(group);
+      group.attr({ opacity: 0.7 });
+      newOpacity = 0.7;
+  }
     group.attr({ opacity: newOpacity });
     const rect = group.select('rect');
     if (rect) rect.attr({ opacity: newOpacity });
@@ -72,35 +74,26 @@ const traverseAndSetDisplay = (node: any, display: string) => {
 };
 
 const handleTitleClick = (
-    group: Snap.Element,
-    e: MouseEvent,
-    selectedTitle: React.MutableRefObject<Set<Snap.Element>>,
-    selectedElements: React.MutableRefObject<Set<Snap.Element>>,
-    node: any,
+  group: Snap.Element,
+  e: MouseEvent,
+  selectedElements: React.MutableRefObject<Set<Snap.Element>>,
+  node: any
 ) => {
-    e.stopPropagation();
-    e.preventDefault();
-
-    const isSelected = selectedTitle.current.has(group);
-    if (isSelected) {
-        selectedTitle.current.delete(group);
-        group.attr({ opacity: 1 });
-        if (node && node.children) {
-            traverseChilds(node, false, selectedElements.current);
-        }
-    } else {
-        selectedTitle.current.add(group);
-        group.attr({ opacity: 0.7 });
-        if (node && node.children) {
-            traverseChilds(node, true, selectedElements.current);
-        }
-    }
-    const rect = group.select('rect');
-    if (rect) rect.attr({ opacity: group.attr('opacity') });
-    const texts = group.selectAll('text');
-    texts.forEach((text: Snap.Element) => {
-        text.attr({ opacity: group.attr('opacity') });
-    });
+  e.stopPropagation();
+  e.preventDefault();
+  if (node.children) {
+      node.children.forEach((child: any) => {
+          if (child.group) {
+              if (selectedElements.current.has(child.group)) {
+                  selectedElements.current.delete(child.group);
+                  child.group.attr({ opacity: 1 });
+              } else {
+                  selectedElements.current.add(child.group);
+                  child.group.attr({ opacity: 0.7 });
+              }
+          }
+      });
+  }
 };
 
 const renderLeafNode = (
@@ -159,7 +152,6 @@ const renderInternalNode = (
     paper: Snap.Paper,
     node: any,
     group: Snap.Element,
-    selectedTitle: React.MutableRefObject<Set<Snap.Element>>,
     selectedElements: React.MutableRefObject<Set<Snap.Element>>,
     enableMeasure: boolean,
 ) => {
@@ -202,7 +194,7 @@ const renderInternalNode = (
     title.node.style.textShadow = '0px 1px 2px rgba(0,0,0,0.3)';
     group.add(titleBg);
     group.add(title);
-    group.click((e: MouseEvent) => handleTitleClick(group, e, selectedTitle, selectedElements, node));
+    group.click((e: MouseEvent) => handleTitleClick(group, e, selectedElements, node));
 };
 const setupLassoSelection = (
     paper: Snap.Paper,
@@ -257,14 +249,14 @@ const setupLassoSelection = (
                     elementBBox.y + elementBBox.height < lassoBBox.y
                 );
                 if (intersects) {
-                    if (element.hasClass('leaf-node')) {
-                        // if (selectedElements.current.has(element)) {
-                        //     selectedElements.current.delete(element);
-                        //     element.select('rect').attr({ opacity: 1 });
-                        // } else {
-                            selectedElements.current.add(element);
-                            element.select('rect').attr({ opacity: 0.7 });
-                        //}
+                     if (element.hasClass('leaf-node')) {
+                    //   if (selectedElements.current.has(element)) {
+                    //     selectedElements.current.delete(element);
+                    //     element.select('rect').attr({ opacity: 1 });
+                    // } else {
+                        selectedElements.current.add(element);
+                        element.select('rect').attr({ opacity: 0.7 });
+                    // }
                     }
                 }
             });
@@ -278,7 +270,6 @@ const renderTreemap = (
     paper: Snap.Paper,
     tree: any,
     selectedElements: React.MutableRefObject<Set<Snap.Element>>,
-    selectedTitle: React.MutableRefObject<Set<Snap.Element>>,
     enableMeasure: boolean,
 ) => {
     const traverse = (node: any) => {
@@ -286,7 +277,7 @@ const renderTreemap = (
         if (!node.children) {
             renderLeafNode(paper, node, group, selectedElements, enableMeasure);
         } else {
-            renderInternalNode(paper, node, group, selectedTitle, selectedElements, enableMeasure);
+            renderInternalNode(paper, node, group, selectedElements, enableMeasure);
             node.children.forEach((child: any) => {
                 traverse(child);
             });
@@ -323,8 +314,8 @@ const traverseChilds = (node: any, selected: boolean = false, selectedElement: S
 export const Treemap: React.FC<TreemapProps> = ({data, width = 2000, height = 1400, enableMeasure = true }) => {
   const svgRef = useRef<SVGSVGElement>(null);
   const paperRef = useRef(null);
-  const selectedElements = useRef<Set<Snap.Element>>(new Set());
-  const selectedTitle = useRef<Set<Snap.Element>>(new Set());
+
+const selectedElements = useRef<Set<Snap.Element>>(new Set()); 
   // const [data] = useState<TreemapData>(TreeMapUtils.getTreeMapData());
   useEffect(() => {
       if (!svgRef.current) return;
@@ -340,7 +331,7 @@ export const Treemap: React.FC<TreemapProps> = ({data, width = 2000, height = 14
           .sum((d) => d.value || 0)
           .sort((a, b) => (b.value || 0) - (a.value || 0));
       const tree = treemapLayout(root);
-      renderTreemap(paperRef.current, tree, selectedElements, selectedTitle, enableMeasure);
+      renderTreemap(paperRef.current, tree, selectedElements, enableMeasure);
       setupLassoSelection(paperRef.current, svgRef, selectedElements);
   }, [data, width, height]);
   useEffect(() => {
